@@ -1,0 +1,6 @@
+#!/bin/bash
+rpm -ivh http://10.255.57.7:8090/upload/zabbix/zabbix-release-3.4-2.el7.noarch.rpm
+yum install -y  zabbix-sender zabbix-agent zabbix
+ipaddr=$(ip a | grep "scope global em1" |grep -P -o "(?<=inet )(.+?)(?=\/24)")
+sed -i -e "s/Server=127.0.0.1/Server=10.255.71.29/" -e "s/ServerActive=127.0.0.1/ServerActive=10.255.71.29/" -e "s/Hostname=Zabbix server/Hostname=$ipaddr/" /etc/zabbix/zabbix_agentd.conf
+/bin/systemctl restart zabbix-agent.service

@@ -1,0 +1,8 @@
+* [创建jenkins命名空间](./jenkins_deploy/jenkins-namespace.yaml.md)
+* [创建jenkins调用k8s的rbac](./jenkins_deploy/jenkins-rbac.yaml.md)
+* [创建jenkins-pv](./jenkins_deploy/jenkins_pv.yaml.md)
+* [创建jenkins-pvc](./jenkins_deploy/jenkins_pvc.yaml.md)
+* [创建jenkins部署集](./jenkins_deploy/jenkins_deploy_pvc.yaml.md)
+* [创建jenkins service](./jenkins_deploy/jenkins_web_svc.yaml.md)
+* [创建jenkins 用于slave的service](./jenkins_deploy/jenkins_slave_svc.yaml.md)
+* [创建jenkins的ingress](./jenkins_deploy/jenkins-ingress.yaml.md)

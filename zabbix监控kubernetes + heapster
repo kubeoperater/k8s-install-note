@@ -1,0 +1,271 @@
+### 参考链接
+
+[内存耗：VSS/RSS/PSS/USS](https://blog.csdn.net/adaptiver/article/details/7084364)
+
+[heapster metrics 列表](https://github.com/kubernetes/heapster/blob/master/docs/storage-schema.md)
+
+[pod metrics url例子](http://10.232.80.24/api/v1/model/namespaces/kube-system/pods/monitoring-influxdb-7686559d5-vk2rt/)
+
+[获取pod的url例子](http://10.232.80.24/api/v1/model/namespaces/kube-system/pods/)
+
+[获取namespace的例子](http://10.232.80.24/api/v1/model/namespaces/)
+
+
+
+1. 动态获取pod信息的脚本：
+
+> Kubernetes.Pod.discovery.sh
+
+~~http://10.232.80.24/~~ 为heapster集群的serviceip
+
+``` bash
+#!/bin/bash
+Namespace=$(curl -s http://10.232.80.24/api/v1/model/namespaces/|tr '[],"' ' ')
+for i in $Namespace
+do
+   POD=$(curl -s http://10.232.80.24/api/v1/model/namespaces/$i/pods/|tr '[],"' ' ')
+   for p in $POD
+        do
+                pp=$(echo $p | sed "s/^\(.*\)$/{\"{#POD}\":\"$i:\1\"\},/g")
+                datal="$datal$pp"
+        done
+done
+rasad="{\"data\":[`echo $datal|sed 's/.$//'`]}"
+echo $rasad
+```
+
+> Kubernetes.Pod.cpuUsage.sh
+
+``` bash
+#!/bin/bash
+#Kubernetes.Pod.cpuUsage
+nspace=$(echo $1 |awk -F":" '{print $1}')
+podname=$(echo $1 |awk -F":" '{print $2}')
+startTime=$(date -d '-1 min' -u "+%Y-%m-%dT%H:%M:00Z")
+pod_cpu_Usage=$(curl -sL http://10.232.80.24/api/v1/model/namespaces/$nspace/pods/$podname/metrics/cpu/usage?start=${startTime} | grep value | tail -n 1 | awk -F":" '{print $2}')
+printf "${pod_cpu_Usage:-Unknown}\n"
+```
+
+
+
+> Kubernetes.Pod.memRss.sh
+
+``` bash
+#!/bin/bash
+#Kubernetes.Pod.cpuUsage
+nspace=$(echo $1 |awk -F":" '{print $1}')
+podname=$(echo $1 |awk -F":" '{print $2}')
+startTime=$(date -d '-1 min' -u "+%Y-%m-%dT%H:%M:00Z")
+pod_mem_Rss=$(curl -sL http://10.232.80.24/api/v1/model/namespaces/$nspace/pods/$podname/metrics/memory/rss?start=${startTime} | grep value | tail -n 1 | awk -F":" '{print $2}'|awk '{$1/=1048567;printf "%.2f\n",$1}')
+printf "${pod_mem_Rss:-Unknown}\n"
+```
+
+> zabbix-agent 配置文件：
+
+>cat ../zabbix_agentd.d/userparameter_kubernetes.conf
+
+``` yaml
+UserParameter=Kubernetes.Pod.discovery,/etc/zabbix/scripts/Kubernetes.Pod.discovery.sh
+UserParameter=Kubernetes.Pod.cpuUsage[*],/etc/zabbix/scripts/Kubernetes.Pod.cpuUsage.sh $1
+UserParameter=Kubernetes.Pod.memRss[*],/etc/zabbix/scripts/Kubernetes.Pod.memRss.sh $1
+UserParameter=Kubernetes.Pod.nettxRate[*],/etc/zabbix/scripts/Kubernetes.Pod.nettxRate.sh $1
+```
+
+**配置完成之后需要重启zabbix-agent**
+
+> zabbix template ： zabbix_monitor_k8s.xml
+
+``` yaml
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>3.4</version>
+    <date>2018-07-25T07:54:10Z</date>
+    <groups>
+        <group>
+            <name>Templates</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>Template K8s Pod Monitor</template>
+            <name>Template K8s Pod Monitor</name>
+            <description>增加k8s的pod监控</description>
+            <groups>
+                <group>
+                    <name>Templates</name>
+                </group>
+            </groups>
+            <applications>
+                <application>
+                    <name>Pod.cpuUsage</name>
+                </application>
+                <application>
+                    <name>Pod.memRss</name>
+                </application>
+            </applications>
+            <items/>
+            <discovery_rules>
+                <discovery_rule>
+                    <name>Kubernetes Pod discovery</name>
+                    <type>0</type>
+                    <snmp_community/>
+                    <snmp_oid/>
+                    <key>Kubernetes.Pod.discovery</key>
+                    <delay>30s</delay>
+                    <status>0</status>
+                    <allowed_hosts/>
+                    <snmpv3_contextname/>
+                    <snmpv3_securityname/>
+                    <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                    <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                    <snmpv3_authpassphrase/>
+                    <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                    <snmpv3_privpassphrase/>
+                    <params/>
+                    <ipmi_sensor/>
+                    <authtype>0</authtype>
+                    <username/>
+                    <password/>
+                    <publickey/>
+                    <privatekey/>
+                    <port/>
+                    <filter>
+                        <evaltype>0</evaltype>
+                        <formula/>
+                        <conditions/>
+                    </filter>
+                    <lifetime>30d</lifetime>
+                    <description/>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>pod cpuUsage at {#POD}</name>
+                            <type>0</type>
+                            <snmp_community/>
+                            <snmp_oid/>
+                            <key>Kubernetes.Pod.cpuUsage[{#POD}]</key>
+                            <delay>5s</delay>
+                            <history>90d</history>
+                            <trends>365d</trends>
+                            <status>0</status>
+                            <value_type>3</value_type>
+                            <allowed_hosts/>
+                            <units>ili</units>
+                            <snmpv3_contextname/>
+                            <snmpv3_securityname/>
+                            <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                            <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                            <snmpv3_authpassphrase/>
+                            <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                            <snmpv3_privpassphrase/>
+                            <params/>
+                            <ipmi_sensor/>
+                            <authtype>0</authtype>
+                            <username/>
+                            <password/>
+                            <publickey/>
+                            <privatekey/>
+                            <port/>
+                            <description/>
+                            <inventory_link>0</inventory_link>
+                            <applications>
+                                <application>
+                                    <name>Pod.cpuUsage</name>
+                                </application>
+                            </applications>
+                            <valuemap/>
+                            <logtimefmt/>
+                            <preprocessing/>
+                            <jmx_endpoint/>
+                            <application_prototypes/>
+                            <master_item_prototype/>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>pod memRss at {#POD}</name>
+                            <type>0</type>
+                            <snmp_community/>
+                            <snmp_oid/>
+                            <key>Kubernetes.Pod.memRss[{#POD}]</key>
+                            <delay>5s</delay>
+                            <history>90d</history>
+                            <trends>365d</trends>
+                            <status>0</status>
+                            <value_type>0</value_type>
+                            <allowed_hosts/>
+                            <units>MB</units>
+                            <snmpv3_contextname/>
+                            <snmpv3_securityname/>
+                            <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                            <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                            <snmpv3_authpassphrase/>
+                            <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                            <snmpv3_privpassphrase/>
+                            <params/>
+                            <ipmi_sensor/>
+                            <authtype>0</authtype>
+                            <username/>
+                            <password/>
+                            <publickey/>
+                            <privatekey/>
+                            <port/>
+                            <description/>
+                            <inventory_link>0</inventory_link>
+                            <applications>
+                                <application>
+                                    <name>Pod.memRss</name>
+                                </application>
+                            </applications>
+                            <valuemap/>
+                            <logtimefmt/>
+                            <preprocessing/>
+                            <jmx_endpoint/>
+                            <application_prototypes/>
+                            <master_item_prototype/>
+                        </item_prototype>
+                    </item_prototypes>
+                    <trigger_prototypes>
+                        <trigger_prototype>
+                            <expression>{Template K8s Pod Monitor:Kubernetes.Pod.cpuUsage[{#POD}].last()}&gt;1000</expression>
+                            <recovery_mode>0</recovery_mode>
+                            <recovery_expression/>
+                            <name>pod cpuUsage at {#POD} is too high</name>
+                            <correlation_mode>0</correlation_mode>
+                            <correlation_tag/>
+                            <url/>
+                            <status>0</status>
+                            <priority>2</priority>
+                            <description/>
+                            <type>0</type>
+                            <manual_close>0</manual_close>
+                            <dependencies/>
+                            <tags/>
+                        </trigger_prototype>
+                        <trigger_prototype>
+                            <expression>{Template K8s Pod Monitor:Kubernetes.Pod.memRss[{#POD}].last()}&gt;100.00</expression>
+                            <recovery_mode>0</recovery_mode>
+                            <recovery_expression/>
+                            <name>pod memRss at {#POD} is too large</name>
+                            <correlation_mode>0</correlation_mode>
+                            <correlation_tag/>
+                            <url/>
+                            <status>0</status>
+                            <priority>2</priority>
+                            <description/>
+                            <type>0</type>
+                            <manual_close>0</manual_close>
+                            <dependencies/>
+                            <tags/>
+                        </trigger_prototype>
+                    </trigger_prototypes>
+                    <graph_prototypes/>
+                    <host_prototypes/>
+                    <jmx_endpoint/>
+                </discovery_rule>
+            </discovery_rules>
+            <httptests/>
+            <macros/>
+            <templates/>
+            <screens/>
+        </template>
+    </templates>
+</zabbix_export>
+```

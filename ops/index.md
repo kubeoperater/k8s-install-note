@@ -1,0 +1,6 @@
+* [k8s健壮性维护](http://jolestar.com/kubernetes-architecture/)
+* [coredns部署](./coredns.md)
+* [创建devuser的开发使用的账户](./创建开发使用的devuser账户.md)
+* [rbac的说明](./rbac/rbac简介.md)
+* [整体架构](./ops/k8s整体架构.md)
+* [pod服务监控](./ops/pod服务的监控.md)
