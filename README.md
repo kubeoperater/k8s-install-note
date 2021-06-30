@@ -61,3 +61,4 @@
 	    * [部署mysqlmgr从](./mysql_mgr_deploy/mysql-mgr-1.md)
 # k8s-install-note
 # k8s-install-note
+# k8s-install-note
